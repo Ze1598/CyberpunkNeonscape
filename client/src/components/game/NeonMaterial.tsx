@@ -1,12 +1,13 @@
 import { shaderMaterial } from '@react-three/drei';
-import { extend, ReactThreeFiber } from '@react-three/fiber';
-import { useMemo } from 'react';
+import { extend, type ThreeElements } from '@react-three/fiber';
+import { ShaderMaterial } from 'three';
 
+// Create shader material
 const NeonMaterialImpl = shaderMaterial(
-  { 
-    time: 0, 
-    color: [0.3, 0.2, 0.6], 
-    intensity: 1.5 
+  {
+    time: 0,
+    color: [0.3, 0.2, 0.6],
+    intensity: 1.5
   },
   // Vertex shader
   `
@@ -36,14 +37,23 @@ const NeonMaterialImpl = shaderMaterial(
   `
 );
 
+// Extend Three.js with our custom material
 extend({ NeonMaterialImpl });
 
-// Add type declaration for the material
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      neonMaterialImpl: ReactThreeFiber.MaterialNode<typeof NeonMaterialImpl, typeof NeonMaterialImpl>;
-    }
+// Declare types for our custom material
+type NeonMaterialImplType = ShaderMaterial & {
+  time: number;
+  color: [number, number, number];
+  intensity: number;
+};
+
+declare module '@react-three/fiber' {
+  interface ThreeElements {
+    neonMaterialImpl: ThreeElements['shaderMaterial'] & {
+      time?: number;
+      color?: [number, number, number];
+      intensity?: number;
+    };
   }
 }
 
@@ -53,14 +63,14 @@ interface NeonMaterialProps {
 }
 
 export default function NeonMaterial({ color = [0.8, 0.2, 0.8], intensity = 1.5 }: NeonMaterialProps) {
-  const material = useMemo(() => new NeonMaterialImpl(), []);
   return (
-    <neonMaterialImpl 
-      ref={material}
+    <neonMaterialImpl
+      key={`neon-${color.join('-')}`}
       transparent
       color={color}
       intensity={intensity}
       toneMapped={false}
+      time={0}
     />
   );
 }

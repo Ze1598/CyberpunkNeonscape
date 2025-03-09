@@ -1,11 +1,10 @@
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Vector3 } from 'three';
-import { RigidBody, CapsuleCollider } from '@react-three/rapier';
+import { RigidBody, CapsuleCollider, type RapierRigidBody } from '@react-three/rapier';
 import { PerspectiveCamera, useKeyboardControls } from '@react-three/drei';
-import useControls from './useControls';
-import type { RapierRigidBody } from '@react-three/rapier';
 import { type PerspectiveCamera as TPerspectiveCamera } from 'three';
+import useControls from '../game/useControls';
 
 export default function Player() {
   const ref = useRef<RapierRigidBody>(null);
@@ -14,41 +13,41 @@ export default function Player() {
 
   const { velocity, onMove, onJump } = useControls();
 
+  // Initialize movement direction vector outside frame loop
+  const moveDirection = new Vector3();
+  const cameraDirection = new Vector3();
+
   useFrame((state, delta) => {
-    if (!ref.current) return;
+    const rigidBody = ref.current;
+    if (!rigidBody) return;
 
     const { forward, backward, left, right, jump } = get();
 
-    // Handle movement
-    const moveDirection = new Vector3();
+    // Reset movement direction
+    moveDirection.set(0, 0, 0);
+
+    // Get camera direction
     const camera = state.camera;
-    const cameraDirection = new Vector3();
     camera.getWorldDirection(cameraDirection);
 
-    if (forward) {
-      moveDirection.add(cameraDirection);
-    }
-    if (backward) {
-      moveDirection.sub(cameraDirection);
-    }
-    if (right) {
-      moveDirection.add(cameraDirection.cross(camera.up).normalize());
-    }
-    if (left) {
-      moveDirection.sub(cameraDirection.cross(camera.up).normalize());
-    }
+    // Calculate movement based on input
+    if (forward) moveDirection.add(cameraDirection);
+    if (backward) moveDirection.sub(cameraDirection);
+    if (right) moveDirection.add(cameraDirection.cross(camera.up).normalize());
+    if (left) moveDirection.sub(cameraDirection.cross(camera.up).normalize());
 
+    // Normalize horizontal movement
     moveDirection.y = 0;
-    moveDirection.normalize();
-
-    onMove(moveDirection, delta);
-
-    if (jump) {
-      onJump();
+    if (moveDirection.lengthSq() > 0) {
+      moveDirection.normalize();
     }
 
-    // Update camera position
-    const playerPosition = ref.current.translation();
+    // Apply movement and jump
+    onMove(moveDirection, delta);
+    if (jump) onJump();
+
+    // Update camera position to follow player
+    const playerPosition = rigidBody.translation();
     camera.position.set(
       playerPosition.x,
       playerPosition.y + 1.5,

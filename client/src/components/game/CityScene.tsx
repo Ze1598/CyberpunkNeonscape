@@ -2,9 +2,9 @@ import { Suspense } from 'react';
 import { Physics } from '@react-three/rapier';
 import { Sky, Stars } from '@react-three/drei';
 import { Vector3Tuple } from 'three';
-import Player from './Player';
-import Building from './Building';
-import Floor from './Floor';
+import Player from '../game/Player';
+import Building from '../game/Building';
+import Floor from '../game/Floor';
 
 interface Building {
   position: Vector3Tuple;
@@ -37,7 +37,7 @@ export default function CityScene() {
       <fog attach="fog" args={['#000000', 10, 50]} />
 
       {/* Physics World */}
-      <Physics gravity={[0, -30, 0]}>
+      <Physics gravity={[0, -30, 0]} interpolate={false}>
         {/* Player */}
         <Player />
 

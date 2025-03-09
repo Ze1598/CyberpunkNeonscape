@@ -1,6 +1,6 @@
 import { RigidBody } from '@react-three/rapier';
-import NeonMaterial from './NeonMaterial';
 import { Vector3Tuple } from 'three';
+import NeonMaterial from '../game/NeonMaterial';
 
 interface BuildingProps {
   position: Vector3Tuple;
