@@ -30,32 +30,3 @@ export default function Home() {
     </div>
   );
 }
-import React from 'react';
-import { Button } from '@/components/ui/button';
-import { NavigationMenu, NavigationMenuList, NavigationMenuItem } from '@/components/ui/navigation-menu';
-
-export default function Home() {
-  return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-10 border-b bg-background p-4">
-        <NavigationMenu>
-          <NavigationMenuList>
-            <NavigationMenuItem className="font-bold text-xl">
-              Your App
-            </NavigationMenuItem>
-          </NavigationMenuList>
-        </NavigationMenu>
-      </header>
-      <main className="flex-1 p-6 flex flex-col items-center justify-center">
-        <h1 className="text-4xl font-bold tracking-tight mb-6">Welcome to Your App</h1>
-        <p className="text-muted-foreground mb-8 text-center max-w-md">
-          This is a starter template with Express backend and React frontend.
-        </p>
-        <Button>Get Started</Button>
-      </main>
-      <footer className="border-t py-4 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} Your App
-      </footer>
-    </div>
-  );
-}
