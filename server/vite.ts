@@ -23,12 +23,6 @@ export function log(message: string, source = "express") {
 }
 
 export async function setupVite(app: Express, server: Server) {
-  const serverOptions = {
-    middlewareMode: true as const,
-    hmr: { server },
-    allowedHosts: true,
-  };
-
   const vite = await createViteServer({
     ...viteConfig,
     configFile: false,
@@ -39,30 +33,56 @@ export async function setupVite(app: Express, server: Server) {
         process.exit(1);
       },
     },
-    server: serverOptions,
-    appType: "custom",
+    server: {
+      middlewareMode: true,
+      hmr: { server },
+      fs: {
+        strict: false,
+        allow: [
+          path.resolve(__dirname, '..', 'client'),
+          path.resolve(__dirname, '..', 'node_modules')
+        ]
+      }
+    },
+    appType: "spa",
   });
 
+  // Serve static files from the client/public directory
+  app.use(express.static(path.resolve(__dirname, '..', 'client', 'public')));
+
+  // Add route for minimal test page
+  app.get('/minimal', (req, res) => {
+    try {
+      const minimalHtmlPath = path.resolve(__dirname, '..', 'client', 'minimal.html');
+      if (fs.existsSync(minimalHtmlPath)) {
+        const html = fs.readFileSync(minimalHtmlPath, 'utf-8');
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } else {
+        res.status(404).send('Minimal test page not found');
+      }
+    } catch (e) {
+      console.error('Error serving minimal page:', e);
+      res.status(500).send('Error serving minimal test page');
+    }
+  });
+
+  // Use vite's connect instance as middleware
   app.use(vite.middlewares);
+
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 
     try {
-      const clientTemplate = path.resolve(
-        __dirname,
-        "..",
-        "client",
-        "index.html",
+      // Read index.html
+      let template = fs.readFileSync(
+        path.resolve(__dirname, "..", "client", "index.html"),
+        "utf-8"
       );
 
-      // always reload the index.html file from disk incase it changes
-      let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      template = template.replace(
-        `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`,
-      );
-      const page = await vite.transformIndexHtml(url, template);
-      res.status(200).set({ "Content-Type": "text/html" }).end(page);
+      // Apply Vite HTML transforms
+      template = await vite.transformIndexHtml(url, template);
+
+      res.status(200).set({ "Content-Type": "text/html" }).end(template);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
       next(e);
@@ -80,6 +100,22 @@ export function serveStatic(app: Express) {
   }
 
   app.use(express.static(distPath));
+
+  // Add route for minimal test page in production too
+  app.get('/minimal', (req, res) => {
+    try {
+      const minimalHtmlPath = path.resolve(__dirname, '..', 'client', 'minimal.html');
+      if (fs.existsSync(minimalHtmlPath)) {
+        const html = fs.readFileSync(minimalHtmlPath, 'utf-8');
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } else {
+        res.status(404).send('Minimal test page not found');
+      }
+    } catch (e) {
+      console.error('Error serving minimal page:', e);
+      res.status(500).send('Error serving minimal test page');
+    }
+  });
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {

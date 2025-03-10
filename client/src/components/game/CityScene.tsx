@@ -1,4 +1,4 @@
-import { Suspense } from 'react';
+import React, { Suspense } from 'react';
 import { Physics } from '@react-three/rapier';
 import { Sky, Stars } from '@react-three/drei';
 import { Vector3Tuple } from 'three';
