@@ -151,12 +151,18 @@
       },
       time: {
         delta: 0,
-        then: 0
+        then: 0,
+        elapsed: 0
       },
       loaded: false,
       gameObjects: {
         buildings: [],
-        floor: null
+        floor: null,
+        raindrops: null,
+        lights: []
+      },
+      effects: {
+        rain: true
       }
     };
 
@@ -181,7 +187,9 @@
         // Initialize Three.js scene
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x000000);
-        this.scene.fog = new THREE.Fog(0x000000, 10, 50);
+        
+        // Add dense cyberpunk fog
+        this.scene.fog = new THREE.FogExp2(0x000000, 0.05);
 
         // Initialize camera
         this.camera = new THREE.PerspectiveCamera(
@@ -197,6 +205,7 @@
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(window.devicePixelRatio);
         this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.container.appendChild(this.renderer.domElement);
 
         this.updateLoadingBar(15, "Setting up controls...");
@@ -227,6 +236,9 @@
 
         // Create the city
         this.createCity();
+        
+        // Create rain effect
+        this.createRain();
 
         this.updateLoadingBar(90, "Finalizing...");
 
@@ -249,19 +261,41 @@
 
       setupLights: function() {
         // Ambient light
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+        const ambientLight = new THREE.AmbientLight(0x111111, 0.2);
         this.scene.add(ambientLight);
 
         // Point lights with cyberpunk colors
-        const pinkLight = new THREE.PointLight(0xff00ff, 0.5, 50);
+        const pinkLight = new THREE.PointLight(0xff00ff, 1, 50, 2);
         pinkLight.position.set(10, 20, 10);
         pinkLight.castShadow = true;
+        pinkLight.shadow.mapSize.width = 1024;
+        pinkLight.shadow.mapSize.height = 1024;
         this.scene.add(pinkLight);
+        gameState.gameObjects.lights.push(pinkLight);
 
-        const cyanLight = new THREE.PointLight(0x00ffff, 0.5, 50);
+        const cyanLight = new THREE.PointLight(0x00ffff, 1, 50, 2);
         cyanLight.position.set(-10, 20, -10);
         cyanLight.castShadow = true;
+        cyanLight.shadow.mapSize.width = 1024;
+        cyanLight.shadow.mapSize.height = 1024;
         this.scene.add(cyanLight);
+        gameState.gameObjects.lights.push(cyanLight);
+        
+        // Add a few more colored lights around the city
+        const colors = [0xff00ff, 0x00ffff, 0xffff00, 0x00ff00];
+        const positions = [
+          [-20, 5, 0],
+          [20, 5, 0],
+          [0, 5, -20],
+          [0, 5, 20]
+        ];
+        
+        positions.forEach((pos, i) => {
+          const light = new THREE.PointLight(colors[i], 0.8, 30, 2);
+          light.position.set(pos[0], pos[1], pos[2]);
+          this.scene.add(light);
+          gameState.gameObjects.lights.push(light);
+        });
       },
 
       setupEnvironment: function() {
@@ -282,12 +316,17 @@
         this.scene.add(starField);
 
         // Create a floor
-        const floorGeometry = new THREE.PlaneGeometry(100, 100);
+        const floorGeometry = new THREE.PlaneGeometry(100, 100, 100, 100);
+        
+        // Create a more interesting floor with reflection
         const floorMaterial = new THREE.MeshStandardMaterial({
-          color: 0x333333,
-          roughness: 0.8,
-          metalness: 0.2
+          color: 0x111111,
+          roughness: 0.3,
+          metalness: 0.8,
+          emissive: 0x111111,
+          emissiveIntensity: 0.1
         });
+        
         const floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.rotation.x = -Math.PI / 2;
         floor.position.y = 0;
@@ -301,6 +340,46 @@
         const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0xff00ff, 0x00ffff);
         gridHelper.position.y = 0.01;
         this.scene.add(gridHelper);
+      },
+      
+      createRain: function() {
+        // Create rain particles
+        const rainCount = 10000;
+        const rainGeometry = new THREE.BufferGeometry();
+        const rainPositions = new Float32Array(rainCount * 3);
+        const rainVelocities = new Float32Array(rainCount);
+        
+        // Create raindrops in a volume above the player
+        for (let i = 0; i < rainCount * 3; i += 3) {
+          rainPositions[i] = (Math.random() - 0.5) * 100; // x
+          rainPositions[i + 1] = Math.random() * 50; // y
+          rainPositions[i + 2] = (Math.random() - 0.5) * 100; // z
+          
+          // Store velocity in a separate array
+          rainVelocities[i / 3] = 0.1 + Math.random() * 0.2;
+        }
+        
+        rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+        
+        // Create a raindrop material with stretched points
+        const rainMaterial = new THREE.PointsMaterial({
+          color: 0x8888ff,
+          size: 0.1,
+          transparent: true,
+          opacity: 0.6,
+          blending: THREE.AdditiveBlending
+        });
+        
+        const rain = new THREE.Points(rainGeometry, rainMaterial);
+        this.scene.add(rain);
+        
+        // Store the rain and velocities for animation
+        gameState.gameObjects.raindrops = {
+          mesh: rain,
+          geometry: rainGeometry,
+          positions: rainPositions,
+          velocities: rainVelocities
+        };
       },
 
       createCity: function() {
@@ -324,11 +403,11 @@
             config.scale[2]
           );
           
-          const emissiveStrength = Math.random() * 0.2;
+          const emissiveStrength = Math.random() * 0.5;
           const buildingMaterial = new THREE.MeshStandardMaterial({
             color: config.color,
             roughness: 0.7,
-            metalness: 0.3,
+            metalness: 0.5,
             emissive: Math.random() > 0.5 ? 0xff00ff : 0x00ffff,
             emissiveIntensity: emissiveStrength
           });
@@ -359,7 +438,11 @@
             if (Math.random() > 0.3) {
               // Randomize window color
               const windowColor = Math.random() > 0.5 ? 0xff00ff : 0x00ffff;
-              const windowMaterial = new THREE.MeshBasicMaterial({ color: windowColor });
+              const windowMaterial = new THREE.MeshBasicMaterial({ 
+                color: windowColor,
+                transparent: true,
+                opacity: 0.8 + Math.random() * 0.2
+              });
               const window = new THREE.Mesh(windowGeometry, windowMaterial);
               
               // Position window on the building
@@ -378,10 +461,65 @@
                 window.rotation.y = -Math.PI / 2;
               }
               
+              // Add flicker effect by storing original intensity
+              window.userData = {
+                originalIntensity: 0.8 + Math.random() * 0.2,
+                flickerSpeed: 0.1 + Math.random() * 0.5
+              };
+              
               building.add(window);
             }
           }
         }
+      },
+
+      updateRain: function(delta) {
+        if (!gameState.gameObjects.raindrops || !gameState.effects.rain) return;
+        
+        const rain = gameState.gameObjects.raindrops;
+        const positions = rain.positions;
+        const velocities = rain.velocities;
+        const playerPos = this.controls.getObject().position;
+        
+        // Update each raindrop
+        for (let i = 0; i < positions.length; i += 3) {
+          // Move raindrop down based on its velocity
+          positions[i + 1] -= velocities[i / 3] * 20 * delta;
+          
+          // If raindrop goes below ground, reset it to above the scene
+          if (positions[i + 1] < 0) {
+            positions[i] = (Math.random() - 0.5) * 100 + playerPos.x; // x
+            positions[i + 1] = 50; // y
+            positions[i + 2] = (Math.random() - 0.5) * 100 + playerPos.z; // z
+          }
+        }
+        
+        // Update the buffer geometry with new positions
+        rain.geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        rain.geometry.attributes.position.needsUpdate = true;
+      },
+      
+      updateLights: function(delta) {
+        // Update lights for a cyberpunk pulse effect
+        const time = gameState.time.elapsed;
+        
+        gameState.gameObjects.lights.forEach((light, index) => {
+          // Create out-of-phase pulsing for each light
+          const pulseFactor = Math.sin(time * 2 + index * 1.3) * 0.2 + 0.8;
+          light.intensity = pulseFactor;
+        });
+        
+        // Update window flicker on buildings
+        gameState.gameObjects.buildings.forEach(building => {
+          building.children.forEach(child => {
+            if (child.userData && child.userData.originalIntensity) {
+              // Random flickering effect
+              if (Math.random() > 0.97) {
+                child.material.opacity = child.userData.originalIntensity * (0.7 + Math.random() * 0.3);
+              }
+            }
+          });
+        });
       },
 
       handleKeyDown: function(event) {
@@ -529,9 +667,16 @@
         // Calculate delta time
         const delta = this.clock.getDelta();
         gameState.time.delta = delta;
+        gameState.time.elapsed += delta;
         
         // Update player movement
         this.updatePlayerMovement(delta);
+        
+        // Update rain particles
+        this.updateRain(delta);
+        
+        // Update lighting effects
+        this.updateLights(delta);
         
         // Render scene
         this.renderer.render(this.scene, this.camera);
