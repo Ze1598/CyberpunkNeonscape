@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cyberpunk Neonscape - 3D Mode</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      background-color: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+    }
+    #game-container {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+    }
+    #ui-overlay {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 15px;
+      border-radius: 5px;
+      z-index: 100;
+      pointer-events: none;
+    }
+    #ui-overlay p {
+      margin: 5px 0;
+      font-size: 14px;
+    }
+    #back-button {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: #00ffff;
+      border: 1px solid #00ffff;
+      padding: 8px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      z-index: 100;
+      pointer-events: auto;
+      font-size: 14px;
+      text-decoration: none;
+    }
+    #back-button:hover {
+      background-color: #00ffff;
+      color: #000;
+    }
+    #loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #000;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    #loading-screen h1 {
+      font-size: 2.5rem;
+      color: #fff;
+      margin-bottom: 20px;
+      text-shadow: 
+        0 0 5px #fff, 
+        0 0 10px #fff, 
+        0 0 15px #0ff, 
+        0 0 20px #0ff, 
+        0 0 25px #0ff;
+    }
+    #loading-bar-container {
+      width: 300px;
+      height: 10px;
+      background-color: #333;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    #loading-bar {
+      height: 100%;
+      width: 0%;
+      background-color: #ff00ff;
+      transition: width 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-screen">
+    <h1>Cyberpunk Neonscape</h1>
+    <div id="loading-bar-container">
+      <div id="loading-bar"></div>
+    </div>
+    <p id="loading-status">Loading resources...</p>
+  </div>
+
+  <div id="game-container"></div>
+  
+  <div id="ui-overlay">
+    <p>WASD / Arrow Keys - Move</p>
+    <p>Space - Jump</p>
+    <p>Mouse - Look around</p>
+  </div>
+  
+  <a href="/" id="back-button">Back to Menu</a>
+
+  <!-- Load Three.js from CDN - Using compatible version -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  
+  <!-- Load additional Three.js modules - Using same version -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+  <script>
+    // Game state
+    const gameState = {
+      keys: {
+        forward: false,
+        backward: false,
+        left: false,
+        right: false,
+        jump: false
+      },
+      player: {
+        height: 1.8,
+        speed: 10,
+        jumpForce: 15,
+        position: new THREE.Vector3(0, 2, 0),
+        velocity: new THREE.Vector3(0, 0, 0),
+        onGround: false,
+        canJump: true
+      },
+      camera: {
+        fov: 75,
+        aspect: window.innerWidth / window.innerHeight,
+        near: 0.1,
+        far: 1000
+      },
+      physics: {
+        gravity: -30,
+        friction: 0.9
+      },
+      time: {
+        delta: 0,
+        then: 0
+      },
+      loaded: false,
+      gameObjects: {
+        buildings: [],
+        floor: null
+      }
+    };
+
+    // Game engine
+    const engine = {
+      scene: null,
+      camera: null,
+      renderer: null,
+      controls: null,
+      raycaster: new THREE.Raycaster(),
+      moveDirection: new THREE.Vector3(),
+      clock: new THREE.Clock(),
+      container: document.getElementById('game-container'),
+      loadingBar: document.getElementById('loading-bar'),
+      loadingStatus: document.getElementById('loading-status'),
+      loadingScreen: document.getElementById('loading-screen'),
+
+      init: function() {
+        // Set up loading screen
+        this.updateLoadingBar(5, "Initializing engine...");
+
+        // Initialize Three.js scene
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x000000);
+        this.scene.fog = new THREE.Fog(0x000000, 10, 50);
+
+        // Initialize camera
+        this.camera = new THREE.PerspectiveCamera(
+          gameState.camera.fov,
+          gameState.camera.aspect,
+          gameState.camera.near,
+          gameState.camera.far
+        );
+        this.camera.position.set(0, gameState.player.height, 0);
+
+        // Set up renderer
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.shadowMap.enabled = true;
+        this.container.appendChild(this.renderer.domElement);
+
+        this.updateLoadingBar(15, "Setting up controls...");
+
+        // Set up pointer lock controls
+        this.controls = new THREE.PointerLockControls(this.camera, document.body);
+        this.scene.add(this.controls.getObject());
+
+        // Event to lock pointer on canvas click
+        this.renderer.domElement.addEventListener('click', () => {
+          this.controls.lock();
+        });
+
+        // Add event listeners for keyboard controls
+        document.addEventListener('keydown', this.handleKeyDown.bind(this));
+        document.addEventListener('keyup', this.handleKeyUp.bind(this));
+        window.addEventListener('resize', this.handleResize.bind(this));
+
+        this.updateLoadingBar(25, "Creating environment...");
+
+        // Set up lighting
+        this.setupLights();
+        
+        // Set up environment
+        this.setupEnvironment();
+
+        this.updateLoadingBar(60, "Building the city...");
+
+        // Create the city
+        this.createCity();
+
+        this.updateLoadingBar(90, "Finalizing...");
+
+        // Hide loading screen
+        setTimeout(() => {
+          this.loadingScreen.style.display = 'none';
+          gameState.loaded = true;
+          this.animate();
+        }, 1000);
+
+        this.updateLoadingBar(100, "Ready!");
+      },
+
+      updateLoadingBar: function(percentage, status) {
+        this.loadingBar.style.width = percentage + '%';
+        if (status) {
+          this.loadingStatus.textContent = status;
+        }
+      },
+
+      setupLights: function() {
+        // Ambient light
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+        this.scene.add(ambientLight);
+
+        // Point lights with cyberpunk colors
+        const pinkLight = new THREE.PointLight(0xff00ff, 0.5, 50);
+        pinkLight.position.set(10, 20, 10);
+        pinkLight.castShadow = true;
+        this.scene.add(pinkLight);
+
+        const cyanLight = new THREE.PointLight(0x00ffff, 0.5, 50);
+        cyanLight.position.set(-10, 20, -10);
+        cyanLight.castShadow = true;
+        this.scene.add(cyanLight);
+      },
+
+      setupEnvironment: function() {
+        // Create a starry background
+        const stars = new THREE.BufferGeometry();
+        const starCount = 5000;
+        const positions = new Float32Array(starCount * 3);
+
+        for (let i = 0; i < starCount * 3; i += 3) {
+          positions[i] = (Math.random() - 0.5) * 2000;
+          positions[i + 1] = (Math.random() - 0.5) * 2000;
+          positions[i + 2] = (Math.random() - 0.5) * 2000;
+        }
+
+        stars.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.5 });
+        const starField = new THREE.Points(stars, starMaterial);
+        this.scene.add(starField);
+
+        // Create a floor
+        const floorGeometry = new THREE.PlaneGeometry(100, 100);
+        const floorMaterial = new THREE.MeshStandardMaterial({
+          color: 0x333333,
+          roughness: 0.8,
+          metalness: 0.2
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.position.y = 0;
+        floor.receiveShadow = true;
+        this.scene.add(floor);
+        gameState.gameObjects.floor = floor;
+
+        // Add grid lines to floor for cyberpunk effect
+        const gridSize = 100;
+        const gridDivisions = 100;
+        const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0xff00ff, 0x00ffff);
+        gridHelper.position.y = 0.01;
+        this.scene.add(gridHelper);
+      },
+
+      createCity: function() {
+        // Define building configurations
+        const buildingConfigs = [
+          { position: [-10, 0, -10], scale: [4, 15, 4], color: 0x333333 },
+          { position: [10, 0, -10], scale: [4, 20, 4], color: 0x222222 },
+          { position: [-10, 0, 10], scale: [4, 12, 4], color: 0x444444 },
+          { position: [10, 0, 10], scale: [4, 18, 4], color: 0x333333 },
+          { position: [0, 0, -15], scale: [4, 25, 4], color: 0x222222 },
+          { position: [-15, 0, 0], scale: [4, 16, 4], color: 0x444444 },
+          { position: [15, 0, 0], scale: [4, 22, 4], color: 0x333333 },
+          { position: [0, 0, 15], scale: [4, 14, 4], color: 0x222222 }
+        ];
+
+        // Create buildings
+        buildingConfigs.forEach(config => {
+          const buildingGeometry = new THREE.BoxGeometry(
+            config.scale[0], 
+            config.scale[1], 
+            config.scale[2]
+          );
+          
+          const emissiveStrength = Math.random() * 0.2;
+          const buildingMaterial = new THREE.MeshStandardMaterial({
+            color: config.color,
+            roughness: 0.7,
+            metalness: 0.3,
+            emissive: Math.random() > 0.5 ? 0xff00ff : 0x00ffff,
+            emissiveIntensity: emissiveStrength
+          });
+          
+          const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+          building.position.set(
+            config.position[0],
+            config.position[1] + config.scale[1] / 2,
+            config.position[2]
+          );
+          building.castShadow = true;
+          building.receiveShadow = true;
+          
+          // Add window lights
+          this.addWindowsToBuilding(building, config.scale);
+          
+          this.scene.add(building);
+          gameState.gameObjects.buildings.push(building);
+        });
+      },
+
+      addWindowsToBuilding: function(building, scale) {
+        const windowGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.1);
+        const windowCount = Math.floor(scale[1] * 2);
+        
+        for (let i = 0; i < windowCount; i++) {
+          for (let j = 0; j < 4; j++) {
+            if (Math.random() > 0.3) {
+              // Randomize window color
+              const windowColor = Math.random() > 0.5 ? 0xff00ff : 0x00ffff;
+              const windowMaterial = new THREE.MeshBasicMaterial({ color: windowColor });
+              const window = new THREE.Mesh(windowGeometry, windowMaterial);
+              
+              // Position window on the building
+              const heightPos = (i / windowCount) * scale[1] - scale[1] / 2 + 0.5;
+              
+              if (j === 0) {
+                window.position.set(0, heightPos, scale[2] / 2 + 0.05);
+              } else if (j === 1) {
+                window.position.set(0, heightPos, -scale[2] / 2 - 0.05);
+                window.rotation.y = Math.PI;
+              } else if (j === 2) {
+                window.position.set(scale[0] / 2 + 0.05, heightPos, 0);
+                window.rotation.y = Math.PI / 2;
+              } else {
+                window.position.set(-scale[0] / 2 - 0.05, heightPos, 0);
+                window.rotation.y = -Math.PI / 2;
+              }
+              
+              building.add(window);
+            }
+          }
+        }
+      },
+
+      handleKeyDown: function(event) {
+        const key = event.key.toLowerCase();
+        if (key === 'w' || key === 'arrowup') {
+          gameState.keys.forward = true;
+          event.preventDefault();
+        }
+        if (key === 's' || key === 'arrowdown') {
+          gameState.keys.backward = true;
+          event.preventDefault();
+        }
+        if (key === 'a' || key === 'arrowleft') {
+          gameState.keys.left = true;
+          event.preventDefault();
+        }
+        if (key === 'd' || key === 'arrowright') {
+          gameState.keys.right = true;
+          event.preventDefault();
+        }
+        if (key === ' ') {
+          gameState.keys.jump = true;
+          event.preventDefault();
+        }
+      },
+
+      handleKeyUp: function(event) {
+        const key = event.key.toLowerCase();
+        if (key === 'w' || key === 'arrowup') {
+          gameState.keys.forward = false;
+        }
+        if (key === 's' || key === 'arrowdown') {
+          gameState.keys.backward = false;
+        }
+        if (key === 'a' || key === 'arrowleft') {
+          gameState.keys.left = false;
+        }
+        if (key === 'd' || key === 'arrowright') {
+          gameState.keys.right = false;
+        }
+        if (key === ' ') {
+          gameState.keys.jump = false;
+        }
+      },
+
+      handleResize: function() {
+        // Update camera aspect ratio
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        
+        // Update renderer size
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+      },
+
+      checkGroundCollision: function() {
+        // Use raycaster to check if player is on ground
+        this.raycaster.ray.origin.copy(this.controls.getObject().position);
+        this.raycaster.ray.direction.set(0, -1, 0);
+
+        const intersects = this.raycaster.intersectObject(gameState.gameObjects.floor);
+        
+        if (intersects.length > 0) {
+          const distance = intersects[0].distance;
+          gameState.player.onGround = distance <= gameState.player.height;
+          return distance;
+        }
+        
+        return Infinity;
+      },
+
+      updatePlayerMovement: function(delta) {
+        // Handle jumping
+        if (gameState.keys.jump && gameState.player.onGround && gameState.player.canJump) {
+          gameState.player.velocity.y += gameState.player.jumpForce;
+          gameState.player.canJump = false;
+          
+          // Reset jump ability after a short delay
+          setTimeout(() => {
+            gameState.player.canJump = true;
+          }, 1000);
+        }
+
+        // Apply gravity
+        if (!gameState.player.onGround) {
+          gameState.player.velocity.y += gameState.physics.gravity * delta;
+        } else if (gameState.player.velocity.y < 0) {
+          gameState.player.velocity.y = 0;
+        }
+
+        // Get camera direction for movement
+        const cameraDirection = new THREE.Vector3();
+        this.camera.getWorldDirection(cameraDirection);
+        cameraDirection.y = 0;
+        cameraDirection.normalize();
+
+        // Reset movement direction
+        this.moveDirection.set(0, 0, 0);
+
+        // Calculate movement based on input
+        if (gameState.keys.forward) {
+          this.moveDirection.add(cameraDirection);
+        }
+        if (gameState.keys.backward) {
+          this.moveDirection.sub(cameraDirection);
+        }
+        
+        const rightVector = new THREE.Vector3().crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
+        
+        if (gameState.keys.right) {
+          this.moveDirection.add(rightVector);
+        }
+        if (gameState.keys.left) {
+          this.moveDirection.sub(rightVector);
+        }
+
+        // Normalize movement vector if necessary
+        if (this.moveDirection.length() > 0) {
+          this.moveDirection.normalize();
+        }
+
+        // Apply movement
+        const controlObject = this.controls.getObject();
+        const speedFactor = gameState.player.speed * delta;
+        
+        controlObject.position.x += this.moveDirection.x * speedFactor;
+        controlObject.position.z += this.moveDirection.z * speedFactor;
+        controlObject.position.y += gameState.player.velocity.y * delta;
+        
+        // Prevent falling through floor
+        const groundDistance = this.checkGroundCollision();
+        if (controlObject.position.y < gameState.player.height) {
+          controlObject.position.y = gameState.player.height;
+        }
+
+        // Apply friction to horizontal velocity
+        gameState.player.velocity.x *= gameState.physics.friction;
+        gameState.player.velocity.z *= gameState.physics.friction;
+      },
+
+      animate: function() {
+        requestAnimationFrame(this.animate.bind(this));
+        
+        if (!gameState.loaded) return;
+        
+        // Calculate delta time
+        const delta = this.clock.getDelta();
+        gameState.time.delta = delta;
+        
+        // Update player movement
+        this.updatePlayerMovement(delta);
+        
+        // Render scene
+        this.renderer.render(this.scene, this.camera);
+      }
+    };
+
+    // Initialize game when page loads
+    window.addEventListener('load', () => {
+      try {
+        // Make sure Three.js is properly loaded before initializing
+        if (typeof THREE === 'undefined' || typeof THREE.PointerLockControls === 'undefined') {
+          console.error('Three.js or PointerLockControls not loaded properly');
+          document.getElementById('loading-status').textContent = 'Error loading Three.js libraries';
+          return;
+        }
+        
+        engine.init();
+      } catch (error) {
+        console.error('Error initializing game:', error);
+        document.getElementById('loading-status').textContent = 'Error initializing game: ' + error.message;
+      }
+    });
+  </script>
+</body>
+</html> 

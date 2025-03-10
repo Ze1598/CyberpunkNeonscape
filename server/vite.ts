@@ -82,22 +82,19 @@ export async function setupVite(app: Express, server: Server) {
     }
   });
 
-  // Add route for 3D mode (original app, might not work)
-  app.get('/3d', async (req, res, next) => {
+  // Add route for 3D mode (vanilla Three.js version)
+  app.get('/3d', (req, res) => {
     try {
-      // Read index.html
-      let template = fs.readFileSync(
-        path.resolve(__dirname, "..", "client", "index.html"),
-        "utf-8"
-      );
-
-      // Apply Vite HTML transforms
-      template = await vite.transformIndexHtml(req.originalUrl, template);
-
-      res.status(200).set({ "Content-Type": "text/html" }).end(template);
+      const threejsGamePath = path.resolve(__dirname, '..', 'client', 'threejs-game.html');
+      if (fs.existsSync(threejsGamePath)) {
+        const html = fs.readFileSync(threejsGamePath, 'utf-8');
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } else {
+        res.status(404).send('3D game not found');
+      }
     } catch (e) {
-      vite.ssrFixStacktrace(e as Error);
-      next(e);
+      console.error('Error serving 3D game:', e);
+      res.status(500).send('Error serving 3D game');
     }
   });
 
@@ -161,6 +158,22 @@ export function serveStatic(app: Express) {
     } catch (e) {
       console.error('Error serving debug page:', e);
       res.status(500).send('Error serving debug page');
+    }
+  });
+
+  // Add route for 3D mode in production too
+  app.get('/3d', (req, res) => {
+    try {
+      const threejsGamePath = path.resolve(__dirname, '..', 'client', 'threejs-game.html');
+      if (fs.existsSync(threejsGamePath)) {
+        const html = fs.readFileSync(threejsGamePath, 'utf-8');
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } else {
+        res.status(404).send('3D game not found');
+      }
+    } catch (e) {
+      console.error('Error serving 3D game:', e);
+      res.status(500).send('Error serving 3D game');
     }
   });
 
