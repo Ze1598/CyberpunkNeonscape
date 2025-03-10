@@ -66,12 +66,24 @@ export async function setupVite(app: Express, server: Server) {
     }
   });
 
-  // Use vite's connect instance as middleware
-  app.use(vite.middlewares);
+  // Add route for debug page
+  app.get('/debug', (req, res) => {
+    try {
+      const debugHtmlPath = path.resolve(__dirname, '..', 'client', 'debug.html');
+      if (fs.existsSync(debugHtmlPath)) {
+        const html = fs.readFileSync(debugHtmlPath, 'utf-8');
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } else {
+        res.status(404).send('Debug page not found');
+      }
+    } catch (e) {
+      console.error('Error serving debug page:', e);
+      res.status(500).send('Error serving debug page');
+    }
+  });
 
-  app.use("*", async (req, res, next) => {
-    const url = req.originalUrl;
-
+  // Add route for 3D mode (original app, might not work)
+  app.get('/3d', async (req, res, next) => {
     try {
       // Read index.html
       let template = fs.readFileSync(
@@ -80,13 +92,32 @@ export async function setupVite(app: Express, server: Server) {
       );
 
       // Apply Vite HTML transforms
-      template = await vite.transformIndexHtml(url, template);
+      template = await vite.transformIndexHtml(req.originalUrl, template);
 
       res.status(200).set({ "Content-Type": "text/html" }).end(template);
     } catch (e) {
       vite.ssrFixStacktrace(e as Error);
       next(e);
     }
+  });
+
+  // Use vite's connect instance as middleware for non-root routes
+  app.use(vite.middlewares);
+
+  // Default to our static HTML file for the main route
+  app.get('/', (req, res) => {
+    try {
+      const indexPath = path.resolve(__dirname, '..', 'client', 'public', 'index.html');
+      res.sendFile(indexPath);
+    } catch (e) {
+      console.error('Error serving root page:', e);
+      res.status(500).send('Error serving page');
+    }
+  });
+
+  // Catch-all route
+  app.use("*", async (req, res) => {
+    res.redirect('/');
   });
 }
 
@@ -114,6 +145,22 @@ export function serveStatic(app: Express) {
     } catch (e) {
       console.error('Error serving minimal page:', e);
       res.status(500).send('Error serving minimal test page');
+    }
+  });
+
+  // Add route for debug page in production too
+  app.get('/debug', (req, res) => {
+    try {
+      const debugHtmlPath = path.resolve(__dirname, '..', 'client', 'debug.html');
+      if (fs.existsSync(debugHtmlPath)) {
+        const html = fs.readFileSync(debugHtmlPath, 'utf-8');
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(html);
+      } else {
+        res.status(404).send('Debug page not found');
+      }
+    } catch (e) {
+      console.error('Error serving debug page:', e);
+      res.status(500).send('Error serving debug page');
     }
   });
 

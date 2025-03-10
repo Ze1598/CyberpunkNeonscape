@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cyberpunk Neonscape - Debug</title>
+  <style>
+    body {
+      font-family: monospace;
+      background-color: #111;
+      color: #00ff00;
+      padding: 20px;
+      margin: 0;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #00ffff;
+      border-bottom: 1px solid #00ffff;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #ff00ff;
+      margin-top: 30px;
+    }
+    pre {
+      background-color: #222;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+    .error {
+      color: #ff0000;
+    }
+    .success {
+      color: #00ff00;
+    }
+    .warning {
+      color: #ffff00;
+    }
+    .button {
+      display: inline-block;
+      background-color: #333;
+      color: #00ffff;
+      padding: 10px 15px;
+      border: 1px solid #00ffff;
+      text-decoration: none;
+      margin-right: 10px;
+      margin-top: 20px;
+      cursor: pointer;
+    }
+    .button:hover {
+      background-color: #00ffff;
+      color: #000;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px;
+      border-bottom: 1px solid #333;
+    }
+    th {
+      color: #ff00ff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Cyberpunk Neonscape - Debug Info</h1>
+    
+    <h2>Browser Environment</h2>
+    <table id="browserInfo">
+      <tr>
+        <th>User Agent</th>
+        <td id="userAgent"></td>
+      </tr>
+      <tr>
+        <th>Platform</th>
+        <td id="platform"></td>
+      </tr>
+      <tr>
+        <th>Language</th>
+        <td id="language"></td>
+      </tr>
+      <tr>
+        <th>Cookies Enabled</th>
+        <td id="cookies"></td>
+      </tr>
+      <tr>
+        <th>Local Storage</th>
+        <td id="localStorage"></td>
+      </tr>
+      <tr>
+        <th>Screen Size</th>
+        <td id="screenSize"></td>
+      </tr>
+      <tr>
+        <th>Window Size</th>
+        <td id="windowSize"></td>
+      </tr>
+    </table>
+    
+    <h2>React Test</h2>
+    <div id="reactTest">
+      <p>Attempting to load React from CDN...</p>
+    </div>
+    <pre id="reactError" class="error"></pre>
+    
+    <h2>Three.js Test</h2>
+    <div id="threeTest">
+      <p>Attempting to load Three.js from CDN...</p>
+    </div>
+    <pre id="threeError" class="error"></pre>
+    
+    <h2>Console Logs</h2>
+    <pre id="consoleOutput"></pre>
+
+    <a href="/" class="button">Back to Main Menu</a>
+    <a href="/minimal" class="button">Try Vanilla JS Version</a>
+    <a href="/3d" class="button">Try 3D Version</a>
+  </div>
+
+  <script>
+    // Capture browser info
+    document.getElementById('userAgent').textContent = navigator.userAgent;
+    document.getElementById('platform').textContent = navigator.platform;
+    document.getElementById('language').textContent = navigator.language;
+    document.getElementById('cookies').textContent = navigator.cookieEnabled;
+    document.getElementById('localStorage').textContent = typeof(Storage) !== "undefined" ? "Available" : "Not Available";
+    document.getElementById('screenSize').textContent = `${screen.width}x${screen.height}`;
+    document.getElementById('windowSize').textContent = `${window.innerWidth}x${window.innerHeight}`;
+
+    // Intercept console output
+    const originalConsole = {
+      log: console.log,
+      error: console.error,
+      warn: console.warn,
+      info: console.info
+    };
+    
+    let consoleOutput = '';
+    
+    console.log = function() {
+      const args = Array.from(arguments);
+      consoleOutput += `LOG: ${args.join(' ')}\n`;
+      document.getElementById('consoleOutput').textContent = consoleOutput;
+      originalConsole.log.apply(console, args);
+    };
+    
+    console.error = function() {
+      const args = Array.from(arguments);
+      consoleOutput += `ERROR: ${args.join(' ')}\n`;
+      document.getElementById('consoleOutput').textContent = consoleOutput;
+      originalConsole.error.apply(console, args);
+    };
+    
+    console.warn = function() {
+      const args = Array.from(arguments);
+      consoleOutput += `WARN: ${args.join(' ')}\n`;
+      document.getElementById('consoleOutput').textContent = consoleOutput;
+      originalConsole.warn.apply(console, args);
+    };
+    
+    // Test React loading
+    function testReact() {
+      try {
+        // Load React without StrictMode
+        const script1 = document.createElement('script');
+        script1.src = 'https://unpkg.com/react@18/umd/react.development.js';
+        
+        const script2 = document.createElement('script');
+        script2.src = 'https://unpkg.com/react-dom@18/umd/react-dom.development.js';
+        
+        script1.onload = function() {
+          document.body.appendChild(script2);
+        };
+        
+        script2.onload = function() {
+          // Try to create a simple React component
+          document.getElementById('reactTest').innerHTML = '';
+          
+          // Create DOM container
+          const container = document.createElement('div');
+          document.getElementById('reactTest').appendChild(container);
+          
+          try {
+            // Try to initialize React
+            const root = ReactDOM.createRoot(container);
+            root.render(
+              React.createElement('div', null, 
+                React.createElement('p', { className: 'success' }, 'React was loaded successfully!')
+              )
+            );
+          } catch (error) {
+            console.error('Error rendering React:', error);
+            document.getElementById('reactError').textContent = error.toString();
+          }
+        };
+        
+        script2.onerror = function() {
+          document.getElementById('reactTest').innerHTML = '<p class="error">Failed to load React DOM</p>';
+        };
+        
+        script1.onerror = function() {
+          document.getElementById('reactTest').innerHTML = '<p class="error">Failed to load React</p>';
+        };
+        
+        document.body.appendChild(script1);
+      } catch (error) {
+        console.error('Error setting up React test:', error);
+        document.getElementById('reactError').textContent = error.toString();
+      }
+    }
+    
+    // Test Three.js loading
+    function testThreeJs() {
+      try {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js';
+        
+        script.onload = function() {
+          document.getElementById('threeTest').innerHTML = '';
+          
+          try {
+            // Try to initialize a simple Three.js scene
+            const container = document.createElement('div');
+            container.style.width = '400px';
+            container.style.height = '200px';
+            document.getElementById('threeTest').appendChild(container);
+            
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(75, 400/200, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer();
+            
+            renderer.setSize(400, 200);
+            container.appendChild(renderer.domElement);
+            
+            // Add a cube
+            const geometry = new THREE.BoxGeometry(1, 1, 1);
+            const material = new THREE.MeshBasicMaterial({color: 0x00ffff, wireframe: true});
+            const cube = new THREE.Mesh(geometry, material);
+            scene.add(cube);
+            
+            camera.position.z = 5;
+            
+            // Animation
+            function animate() {
+              requestAnimationFrame(animate);
+              
+              cube.rotation.x += 0.01;
+              cube.rotation.y += 0.01;
+              
+              renderer.render(scene, camera);
+            }
+            
+            animate();
+            
+            document.getElementById('threeTest').appendChild(
+              document.createElement('p')
+            ).innerHTML = '<span class="success">Three.js loaded successfully!</span>';
+          } catch (error) {
+            console.error('Error initializing Three.js:', error);
+            document.getElementById('threeError').textContent = error.toString();
+          }
+        };
+        
+        script.onerror = function() {
+          document.getElementById('threeTest').innerHTML = '<p class="error">Failed to load Three.js</p>';
+        };
+        
+        document.body.appendChild(script);
+      } catch (error) {
+        console.error('Error setting up Three.js test:', error);
+        document.getElementById('threeError').textContent = error.toString();
+      }
+    }
+    
+    // Run tests
+    testReact();
+    testThreeJs();
+  </script>
+</body>
+</html> 

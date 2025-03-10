@@ -11,70 +11,173 @@
       height: 100%;
       width: 100%;
       overflow: hidden;
+      background-color: #111;
+      color: white;
+      font-family: Arial, sans-serif;
     }
     #root {
       height: 100%;
       width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      color: #fff;
+      text-shadow: 
+        0 0 5px #fff, 
+        0 0 10px #fff, 
+        0 0 15px #0ff, 
+        0 0 20px #0ff, 
+        0 0 25px #0ff;
+    }
+    .game-area {
+      width: 600px;
+      height: 400px;
+      border: 2px solid #00ffff;
+      position: relative;
+      overflow: hidden;
+      margin: 2rem 0;
+      box-shadow: 0 0 10px #00ffff;
+    }
+    .player {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background-color: #ff00ff;
+      position: absolute;
+      left: 300px;
+      top: 200px;
+      box-shadow: 0 0 10px #ff00ff;
+      transition: all 0.1s ease;
+    }
+    .controls {
+      background-color: rgba(0, 0, 0, 0.5);
+      padding: 1rem;
+      border-radius: 0.5rem;
+      margin-top: 1rem;
+    }
+    .btn {
+      margin-top: 1rem;
+      background-color: #ff00ff;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      border-radius: 0.25rem;
+    }
+    a {
+      color: #00ffff;
+      text-decoration: underline;
+      margin-top: 1rem;
+      display: inline-block;
     }
   </style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="module">
-    // Load React from CDN to avoid bundling issues
-    import React from 'https://esm.sh/react@18';
-    import ReactDOM from 'https://esm.sh/react-dom@18/client';
+  <div id="root">
+    <h1>Cyberpunk Neonscape</h1>
+    <p>Simplified 2D Version with Vanilla JavaScript</p>
     
-    // Simple component
-    function App() {
-      const [count, setCount] = React.useState(0);
-      
-      return React.createElement('div', {
-        style: {
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          fontFamily: 'Arial, sans-serif',
-          backgroundColor: '#111',
-          color: 'white'
-        }
-      }, [
-        React.createElement('h1', {key: 'title'}, 'Cyberpunk Neonscape'),
-        React.createElement('p', {key: 'desc'}, 'Minimal version to diagnose React issues'),
-        React.createElement('button', {
-          key: 'button',
-          style: {
-            margin: '20px',
-            padding: '10px 20px',
-            backgroundColor: '#ff00ff',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          },
-          onClick: () => setCount(count + 1)
-        }, `Clicked ${count} times`),
-        React.createElement('div', {key: 'info'}, [
-          React.createElement('p', {key: 'infoText'}, 'If this works, we have a React initialization issue in the main app.'),
-          React.createElement('a', {
-            key: 'link',
-            href: '/',
-            style: {
-              color: '#00ffff',
-              textDecoration: 'underline',
-              marginTop: '20px',
-              display: 'inline-block'
-            }
-          }, 'Try main app again')
-        ])
-      ]);
-    }
+    <div class="game-area" id="gameArea">
+      <div class="player" id="player"></div>
+    </div>
+    
+    <div class="controls">
+      <p>WASD - Move the player</p>
+      <a href="/">Return to main menu</a>
+    </div>
+  </div>
 
-    // Mount React
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(React.createElement(React.StrictMode, null, React.createElement(App)));
+  <script>
+    // Player controls using vanilla JavaScript
+    const player = document.getElementById('player');
+    const gameArea = document.getElementById('gameArea');
+    
+    let playerX = 300;
+    let playerY = 200;
+    const speed = 5;
+    const keys = { w: false, a: false, s: false, d: false };
+    
+    // Key handlers
+    document.addEventListener('keydown', function(e) {
+      const key = e.key.toLowerCase();
+      if (['w', 'a', 's', 'd'].includes(key)) {
+        keys[key] = true;
+        e.preventDefault();
+      }
+    });
+    
+    document.addEventListener('keyup', function(e) {
+      const key = e.key.toLowerCase();
+      if (['w', 'a', 's', 'd'].includes(key)) {
+        keys[key] = false;
+      }
+    });
+    
+    // Game loop
+    function updatePlayer() {
+      if (keys.w) playerY -= speed;
+      if (keys.s) playerY += speed;
+      if (keys.a) playerX -= speed;
+      if (keys.d) playerX += speed;
+      
+      // Keep player in bounds
+      const gameWidth = gameArea.clientWidth;
+      const gameHeight = gameArea.clientHeight;
+      const playerSize = 20;
+      
+      playerX = Math.max(playerSize/2, Math.min(gameWidth - playerSize/2, playerX));
+      playerY = Math.max(playerSize/2, Math.min(gameHeight - playerSize/2, playerY));
+      
+      // Update player position
+      player.style.left = `${playerX - playerSize/2}px`;
+      player.style.top = `${playerY - playerSize/2}px`;
+      
+      // Add trail effect
+      const trail = document.createElement('div');
+      trail.style.position = 'absolute';
+      trail.style.width = '5px';
+      trail.style.height = '5px';
+      trail.style.backgroundColor = '#ff00ff';
+      trail.style.opacity = '0.7';
+      trail.style.borderRadius = '50%';
+      trail.style.left = `${playerX}px`;
+      trail.style.top = `${playerY}px`;
+      gameArea.appendChild(trail);
+      
+      // Fade out and remove trail
+      setTimeout(() => {
+        let opacity = 0.7;
+        const fadeInterval = setInterval(() => {
+          opacity -= 0.1;
+          trail.style.opacity = opacity.toString();
+          if (opacity <= 0) {
+            clearInterval(fadeInterval);
+            gameArea.removeChild(trail);
+          }
+        }, 50);
+      }, 200);
+      
+      requestAnimationFrame(updatePlayer);
+    }
+    
+    // Start the game
+    updatePlayer();
+    
+    // Add some info to show we're avoiding React
+    const infoDiv = document.createElement('div');
+    infoDiv.style.marginTop = '2rem';
+    infoDiv.style.textAlign = 'center';
+    infoDiv.innerHTML = `
+      <h3>Why this works</h3>
+      <p>This page avoids using React entirely to prevent the initialization error.</p>
+      <p>The error "Cannot read properties of undefined (reading 'S')" is likely due to a compatibility issue with React 18 and Three.js.</p>
+    `;
+    document.getElementById('root').appendChild(infoDiv);
   </script>
 </body>
 </html> 
