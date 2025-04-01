@@ -49,6 +49,17 @@
       background: #00ffff;
       box-shadow: 0 0 10px #00ffff, 0 0 40px #00ffff, 0 0 80px #00ffff;
     }
+    .debug-button {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      font-size: 14px;
+      padding: 5px 10px;
+      opacity: 0.5;
+    }
+    .debug-button:hover {
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
@@ -57,103 +68,10 @@
     <p class="text-xl mb-8">A cyberpunk-themed 3D game</p>
     
     <div class="flex flex-col items-center">
-      <h2 class="text-3xl font-bold mb-4">Game Options</h2>
-      <p class="text-lg mb-2">The 3D version is currently experiencing technical issues.</p>
-      <p class="text-lg mb-6">Please select an option:</p>
-      
-      <div class="space-y-4">
-        <button id="basicMode" class="neon-button">2D Mode</button>
-        <a href="/minimal" class="neon-button">Vanilla JS Version</a>
-        <a href="/3d" class="neon-button">Try 3D Mode Anyway</a>
-        <a href="/debug" class="neon-button" style="font-size: 16px; padding: 8px 16px;">Debug Tools</a>
-      </div>
-      
-      <div class="mt-12 p-4 bg-black/50 rounded-lg max-w-lg">
-        <h3 class="text-xl font-bold mb-2">Technical Details</h3>
-        <p class="text-sm">Error: Cannot read properties of undefined (reading 'S')</p>
-        <p class="text-sm mt-2">This appears to be an issue with React initialization in the Three.js context. We're working on a solution.</p>
-      </div>
+      <a href="/3d" class="neon-button">Enter the 3D World</a>
     </div>
   </div>
 
-  <script>
-    // Add event handlers
-    document.getElementById('basicMode').addEventListener('click', function() {
-      // Create a simple 2D game fallback
-      const root = document.getElementById('root');
-      
-      // Clear existing content
-      root.innerHTML = '';
-      root.className = 'relative overflow-hidden bg-black';
-      
-      // Add game area
-      const gameArea = document.createElement('div');
-      gameArea.className = 'w-full h-full relative';
-      
-      // Add player
-      const player = document.createElement('div');
-      player.className = 'absolute w-10 h-10 bg-pink-500 rounded-full transition-all duration-100';
-      player.style.left = '50%';
-      player.style.top = '50%';
-      player.style.transform = 'translate(-50%, -50%)';
-      player.style.boxShadow = '0 0 10px #ff00ff, 0 0 20px #ff00ff';
-      
-      gameArea.appendChild(player);
-      root.appendChild(gameArea);
-      
-      // Simple keyboard controls
-      let playerX = window.innerWidth / 2;
-      let playerY = window.innerHeight / 2;
-      const speed = 10;
-      const keys = { w: false, a: false, s: false, d: false };
-      
-      document.addEventListener('keydown', function(e) {
-        const key = e.key.toLowerCase();
-        if (['w', 'a', 's', 'd'].includes(key)) {
-          keys[key] = true;
-          e.preventDefault();
-        }
-      });
-      
-      document.addEventListener('keyup', function(e) {
-        const key = e.key.toLowerCase();
-        if (['w', 'a', 's', 'd'].includes(key)) {
-          keys[key] = false;
-        }
-      });
-      
-      function updatePlayer() {
-        if (keys.w) playerY -= speed;
-        if (keys.s) playerY += speed;
-        if (keys.a) playerX -= speed;
-        if (keys.d) playerX += speed;
-        
-        // Keep player in bounds
-        playerX = Math.max(10, Math.min(window.innerWidth - 10, playerX));
-        playerY = Math.max(10, Math.min(window.innerHeight - 10, playerY));
-        
-        player.style.left = `${playerX}px`;
-        player.style.top = `${playerY}px`;
-        player.style.transform = 'translate(-50%, -50%)';
-        
-        requestAnimationFrame(updatePlayer);
-      }
-      
-      updatePlayer();
-      
-      // Add UI elements
-      const ui = document.createElement('div');
-      ui.className = 'absolute bottom-4 left-4 bg-black/50 p-2 rounded text-white';
-      ui.innerHTML = `
-        <p class="text-sm">WASD - Move</p>
-        <button id="backButton" class="mt-2 text-xs bg-gray-700 px-2 py-1 rounded">Back to Menu</button>
-      `;
-      root.appendChild(ui);
-      
-      document.getElementById('backButton').addEventListener('click', function() {
-        window.location.reload();
-      });
-    });
-  </script>
+  <a href="/debug" class="neon-button debug-button">Debug Tools</a>
 </body>
 </html> 
