@@ -159,7 +159,8 @@
         buildings: [],
         floor: null,
         raindrops: null,
-        lights: []
+        lights: [],
+        gridSections: new Map()
       },
       effects: {
         rain: true
@@ -248,7 +249,7 @@
 
         this.updateLoadingBar(90, "Finalizing...");
 
-        // Hide loading screen
+        // Hide loading screen and start animation
         setTimeout(() => {
           this.loadingScreen.style.display = 'none';
           gameState.loaded = true;
@@ -321,7 +322,28 @@
         const starField = new THREE.Points(stars, starMaterial);
         this.scene.add(starField);
 
-        // Create a floor
+        // Create initial floor sections
+        this.createFloorSection(0, 0);
+        this.createFloorSection(100, 0);
+        this.createFloorSection(-100, 0);
+        this.createFloorSection(0, 100);
+        this.createFloorSection(0, -100);
+        this.createFloorSection(100, 100);
+        this.createFloorSection(-100, 100);
+        this.createFloorSection(100, -100);
+        this.createFloorSection(-100, -100);
+
+        // Set initial spawn position
+        if (this.controls && this.controls.getObject()) {
+          gameState.buildingSpawn.lastSpawnPosition.copy(this.controls.getObject().position);
+        }
+      },
+
+      createFloorSection: function(x, z) {
+        const key = `${x},${z}`;
+        if (gameState.gameObjects.gridSections.has(key)) return;
+
+        // Create a floor section
         const floorGeometry = new THREE.PlaneGeometry(100, 100, 100, 100);
         
         // Create a more interesting floor with reflection
@@ -335,19 +357,25 @@
         
         const floor = new THREE.Mesh(floorGeometry, floorMaterial);
         floor.rotation.x = -Math.PI / 2;
-        floor.position.y = 0;
+        floor.position.set(x, 0, z);
         floor.receiveShadow = true;
         this.scene.add(floor);
-        gameState.gameObjects.floor = floor;
 
         // Add grid lines to floor for cyberpunk effect
         const gridSize = 100;
         const gridDivisions = 100;
         const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0xff00ff, 0x00ffff);
-        gridHelper.position.y = 0.01;
+        gridHelper.position.set(x, 0.01, z);
         this.scene.add(gridHelper);
+
+        // Store both the floor and grid in the sections map
+        gameState.gameObjects.gridSections.set(key, {
+          floor: floor,
+          grid: gridHelper,
+          position: { x, z }
+        });
       },
-      
+
       createRain: function() {
         // Create rain particles
         const rainCount = 10000;
@@ -437,14 +465,6 @@
         buildingConfigs.forEach(config => {
           this.createBuilding(config);
         });
-
-        // Set initial spawn position after a short delay to ensure controls are initialized
-        setTimeout(() => {
-          if (this.controls && this.controls.getObject()) {
-            gameState.buildingSpawn.lastSpawnPosition.copy(this.controls.getObject().position);
-            console.log('Initial spawn position set:', gameState.buildingSpawn.lastSpawnPosition);
-          }
-        }, 1000);
       },
 
       addWindowsToBuilding: function(building, scale) {
@@ -597,12 +617,24 @@
         this.raycaster.ray.origin.copy(this.controls.getObject().position);
         this.raycaster.ray.direction.set(0, -1, 0);
 
-        const intersects = this.raycaster.intersectObject(gameState.gameObjects.floor);
+        // Check intersection with all floor sections
+        let closestIntersection = null;
+        let closestDistance = Infinity;
+
+        gameState.gameObjects.gridSections.forEach(section => {
+          const intersects = this.raycaster.intersectObject(section.floor);
+          if (intersects.length > 0) {
+            const distance = intersects[0].distance;
+            if (distance < closestDistance) {
+              closestDistance = distance;
+              closestIntersection = intersects[0];
+            }
+          }
+        });
         
-        if (intersects.length > 0) {
-          const distance = intersects[0].distance;
-          gameState.player.onGround = distance <= gameState.player.height;
-          return distance;
+        if (closestIntersection) {
+          gameState.player.onGround = closestDistance <= gameState.player.height;
+          return closestDistance;
         }
         
         return Infinity;
