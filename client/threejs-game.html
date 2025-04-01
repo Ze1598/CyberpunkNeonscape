@@ -323,20 +323,46 @@
         this.scene.add(starField);
 
         // Create initial floor sections
-        this.createFloorSection(0, 0);
-        this.createFloorSection(100, 0);
-        this.createFloorSection(-100, 0);
-        this.createFloorSection(0, 100);
-        this.createFloorSection(0, -100);
-        this.createFloorSection(100, 100);
-        this.createFloorSection(-100, 100);
-        this.createFloorSection(100, -100);
-        this.createFloorSection(-100, -100);
+        this.updateGridSections();
+      },
 
-        // Set initial spawn position
-        if (this.controls && this.controls.getObject()) {
-          gameState.buildingSpawn.lastSpawnPosition.copy(this.controls.getObject().position);
+      updateGridSections: function() {
+        const playerPosition = this.controls.getObject().position;
+        const sectionSize = 100;
+        const viewDistance = 200; // How far to keep sections in view
+        const gridSize = 5; // Number of sections in each direction (5x5 grid)
+        
+        // Calculate the center section coordinates
+        const centerX = Math.floor(playerPosition.x / sectionSize) * sectionSize;
+        const centerZ = Math.floor(playerPosition.z / sectionSize) * sectionSize;
+        
+        // Create a set of sections that should exist
+        const requiredSections = new Set();
+        for (let x = -gridSize; x <= gridSize; x++) {
+          for (let z = -gridSize; z <= gridSize; z++) {
+            const sectionX = centerX + (x * sectionSize);
+            const sectionZ = centerZ + (z * sectionSize);
+            requiredSections.add(`${sectionX},${sectionZ}`);
+          }
         }
+        
+        // Remove sections that are too far from the player
+        gameState.gameObjects.gridSections.forEach((section, key) => {
+          if (!requiredSections.has(key)) {
+            // Remove the section from the scene
+            this.scene.remove(section.floor);
+            this.scene.remove(section.grid);
+            gameState.gameObjects.gridSections.delete(key);
+          }
+        });
+        
+        // Create new sections that are needed
+        requiredSections.forEach(key => {
+          if (!gameState.gameObjects.gridSections.has(key)) {
+            const [x, z] = key.split(',').map(Number);
+            this.createFloorSection(x, z);
+          }
+        });
       },
 
       createFloorSection: function(x, z) {
@@ -776,6 +802,9 @@
         
         // Update player movement
         this.updatePlayerMovement(delta);
+        
+        // Update grid sections
+        this.updateGridSections();
         
         // Check and spawn new buildings if needed
         this.checkAndSpawnBuildings();
