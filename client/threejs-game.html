@@ -163,6 +163,12 @@
       },
       effects: {
         rain: true
+      },
+      buildingSpawn: {
+        lastSpawnPosition: new THREE.Vector3(0, 0, 0),
+        spawnThreshold: 30, // Reduced from 50 to 30 for more frequent spawning
+        minDistanceBetweenBuildings: 15, // Reduced from 20 to 15 for denser city
+        maxBuildings: 100 // Maximum number of buildings to maintain
       }
     };
 
@@ -382,6 +388,38 @@
         };
       },
 
+      createBuilding: function(config) {
+        const buildingGeometry = new THREE.BoxGeometry(
+          config.scale[0], 
+          config.scale[1], 
+          config.scale[2]
+        );
+        
+        const emissiveStrength = Math.random() * 0.5;
+        const buildingMaterial = new THREE.MeshStandardMaterial({
+          color: config.color,
+          roughness: 0.7,
+          metalness: 0.5,
+          emissive: Math.random() > 0.5 ? 0xff00ff : 0x00ffff,
+          emissiveIntensity: emissiveStrength
+        });
+        
+        const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
+        building.position.set(
+          config.position[0],
+          config.position[1] + config.scale[1] / 2,
+          config.position[2]
+        );
+        building.castShadow = true;
+        building.receiveShadow = true;
+        
+        // Add window lights
+        this.addWindowsToBuilding(building, config.scale);
+        
+        this.scene.add(building);
+        gameState.gameObjects.buildings.push(building);
+      },
+
       createCity: function() {
         // Define building configurations
         const buildingConfigs = [
@@ -395,38 +433,18 @@
           { position: [0, 0, 15], scale: [4, 14, 4], color: 0x222222 }
         ];
 
-        // Create buildings
+        // Create initial buildings
         buildingConfigs.forEach(config => {
-          const buildingGeometry = new THREE.BoxGeometry(
-            config.scale[0], 
-            config.scale[1], 
-            config.scale[2]
-          );
-          
-          const emissiveStrength = Math.random() * 0.5;
-          const buildingMaterial = new THREE.MeshStandardMaterial({
-            color: config.color,
-            roughness: 0.7,
-            metalness: 0.5,
-            emissive: Math.random() > 0.5 ? 0xff00ff : 0x00ffff,
-            emissiveIntensity: emissiveStrength
-          });
-          
-          const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
-          building.position.set(
-            config.position[0],
-            config.position[1] + config.scale[1] / 2,
-            config.position[2]
-          );
-          building.castShadow = true;
-          building.receiveShadow = true;
-          
-          // Add window lights
-          this.addWindowsToBuilding(building, config.scale);
-          
-          this.scene.add(building);
-          gameState.gameObjects.buildings.push(building);
+          this.createBuilding(config);
         });
+
+        // Set initial spawn position after a short delay to ensure controls are initialized
+        setTimeout(() => {
+          if (this.controls && this.controls.getObject()) {
+            gameState.buildingSpawn.lastSpawnPosition.copy(this.controls.getObject().position);
+            console.log('Initial spawn position set:', gameState.buildingSpawn.lastSpawnPosition);
+          }
+        }, 1000);
       },
 
       addWindowsToBuilding: function(building, scale) {
@@ -659,6 +677,61 @@
         gameState.player.velocity.z *= gameState.physics.friction;
       },
 
+      checkAndSpawnBuildings: function() {
+        const playerPosition = this.controls.getObject().position;
+        const distanceFromLastSpawn = playerPosition.distanceTo(gameState.buildingSpawn.lastSpawnPosition);
+
+        if (distanceFromLastSpawn >= gameState.buildingSpawn.spawnThreshold) {
+          console.log('Spawning new buildings. Distance:', distanceFromLastSpawn);
+          
+          // Generate new buildings around the player
+          const spawnRadius = gameState.buildingSpawn.spawnThreshold;
+          const numNewBuildings = 6; // Increased from 4 to 6 for more buildings per spawn
+
+          for (let i = 0; i < numNewBuildings; i++) {
+            // Check if we've reached the maximum number of buildings
+            if (gameState.gameObjects.buildings.length >= gameState.buildingSpawn.maxBuildings) {
+              console.log('Reached maximum number of buildings');
+              break;
+            }
+
+            // Generate random position around the player
+            const angle = (Math.PI * 2 * i) / numNewBuildings + Math.random() * 0.5;
+            const radius = spawnRadius + Math.random() * 10;
+            const x = playerPosition.x + Math.cos(angle) * radius;
+            const z = playerPosition.z + Math.sin(angle) * radius;
+
+            // Check if position is too close to existing buildings
+            let tooClose = false;
+            for (const building of gameState.gameObjects.buildings) {
+              const distance = new THREE.Vector2(x, z).distanceTo(
+                new THREE.Vector2(building.position.x, building.position.z)
+              );
+              if (distance < gameState.buildingSpawn.minDistanceBetweenBuildings) {
+                tooClose = true;
+                break;
+              }
+            }
+
+            if (!tooClose) {
+              // Create new building with random height and color
+              const height = 10 + Math.random() * 20;
+              const config = {
+                position: [x, 0, z],
+                scale: [4, height, 4],
+                color: 0x222222 + Math.floor(Math.random() * 0x222222)
+              };
+              this.createBuilding(config);
+              console.log('Created new building at:', x, 0, z);
+            }
+          }
+
+          // Update last spawn position
+          gameState.buildingSpawn.lastSpawnPosition.copy(playerPosition);
+          console.log('Updated spawn position to:', playerPosition);
+        }
+      },
+
       animate: function() {
         requestAnimationFrame(this.animate.bind(this));
         
@@ -671,6 +744,9 @@
         
         // Update player movement
         this.updatePlayerMovement(delta);
+        
+        // Check and spawn new buildings if needed
+        this.checkAndSpawnBuildings();
         
         // Update rain particles
         this.updateRain(delta);
